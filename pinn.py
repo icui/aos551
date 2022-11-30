@@ -33,7 +33,7 @@ class PINN(Solver):
     factr = 1e5
     m = 50
     maxls = 50
-    niters = 50
+    niters = 500
 
     def run(self):
         self.nn = NN(self.layers)

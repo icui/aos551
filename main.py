@@ -50,7 +50,7 @@ if nn:
 
     pinn = run(PINN)
     pinn.plot()
-    print(f'{np.sum((pinn.field - fd.field) ** 2)}:.2e')
+    print(f'{np.sum((pinn.field - fd.field) ** 2):.2e}')
 
 else:
     fd.plot()
