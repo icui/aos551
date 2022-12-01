@@ -16,14 +16,22 @@ class NN(nn.Module):
 
         self.nn = nn.Sequential(*seq[:-1])
 
+
+class NN_wave(NN):
     def forward(self, x, t):
         return self.nn(torch.cat([x, t], dim=1))
+
+
+class NN_model(NN):
+    def forward(self, x):
+        return self.nn(x)
 
 
 class PINN(Solver):
     name = 'pinn'
 
     layers = [2, 32, 16, 16, 32, 1]
+    layers_model = [1, 16, 16, 1]
     activation='tanh'
 
     ntrain = 10000
@@ -33,14 +41,15 @@ class PINN(Solver):
     factr = 1e5
     m = 50
     maxls = 50
-    niters = 500
+    niter_adam = 1000
+    niter_lbfgs = 500
+
+    # def run(self):
+    #     model = NN_model(self.layers)
 
     def run(self):
-        self.nn = NN(self.layers)
-        self.optimizer = torch.optim.Adam(self.nn.parameters(), lr=0.01)
-        # optimizer = torch.optim.SGD(nn.parameters(), lr=0.01)
-        # self.optimizer = torch.optim.LBFGS(self.nn.parameters(), history_size=10, line_search_fn='strong_wolfe')
-
+        self.nn = NN_wave(self.layers)
+        
         self.create_data()
         self.train()
         self.postprocess()
@@ -80,20 +89,28 @@ class PINN(Solver):
     
     def train(self):
         self.nn.train()
-
         self.hist = []
 
-        for epoch in range(self.niters):
+        self.optimizer = torch.optim.Adam(self.nn.parameters(), lr=0.005)
+        
+        for epoch in range(self.niter_adam):
             loss = self.loss()
-            self.optimizer.zero_grad()
-            loss.backward()
+            self.optimizer.step()
 
+            with torch.autograd.no_grad():
+                print(epoch,"Traning Loss:",loss.data)
+                self.hist.append(loss.data)
+        
+        self.optimizer = torch.optim.LBFGS(self.nn.parameters(), line_search_fn='strong_wolfe')
+        
+        for epoch in range(self.niter_lbfgs):
+            loss = self.loss()
             self.optimizer.step(self.loss)
 
             with torch.autograd.no_grad():
                 print(epoch,"Traning Loss:",loss.data)
                 self.hist.append(loss.data)
-    
+
     def grad(self, f, x):
         return torch.autograd.grad(f, x, grad_outputs=torch.ones_like(f), create_graph=True, retain_graph=True)[0]
 
@@ -121,12 +138,14 @@ class PINN(Solver):
             mse_rb = mse(u_rb, self.zero) + mse(self.grad(self.grad(u_rb, self.x_rb), self.x_rb), self.zero)
 
         loss = mse_eqn + mse_ini + mse_lb + mse_rb
-        # loss = mse_eqn + mse_ini
 
-        # if self.dat:
-        #     u_dat = nn(x_dat, t_dat)
-        #     mse_dat = mse(u_dat, u_dat_true)
-        #     loss += mse_dat
+        if self.dat:
+            u_dat = nn(self.x_dat, self.t_dat)
+            mse_dat = mse(u_dat, self.u_dat_true)
+            loss += mse_dat
+
+        self.optimizer.zero_grad()
+        loss.backward()
 
         return loss
     

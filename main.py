@@ -5,7 +5,7 @@ nn = 1
 src = 0
 homo = 1
 lb = 1  # 0: dirichlet 1: neumann
-rb = 1  # 0: dirichlet 1: neumann
+rb = 0  # 0: dirichlet 1: neumann
 dat = 0
 
 if src:
