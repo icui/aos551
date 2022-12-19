@@ -1,6 +1,6 @@
 *.npy
 *.png
 *.pt
-out_*
-*.pyc
+out*
+bak*
 __pycache__

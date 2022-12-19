@@ -29,6 +29,8 @@ class NN_model(NN):
 
 class PINN(Solver):
     name = 'pinn'
+    prefix = 'homo'
+
     load_wave = False
     load_model = False
     update_wave = True
@@ -42,6 +44,7 @@ class PINN(Solver):
     batch = 15000
     weights = [1, 1, 1, 1, 1, 1, 1, 1]
 
+    model_retry = 10
     niter_adam = 1000
     niter_lbfgs = 500
     niter_model = 100
@@ -54,13 +57,13 @@ class PINN(Solver):
         self.create_data()
         
         if self.load_model:
-            self.model.load_state_dict(torch.load('model.pt'))
+            self.model.load_state_dict(torch.load(self.prefix + '_model.pt'))
         
         else:
             self.create_model()
 
         if self.load_wave:
-            self.wave.load_state_dict(torch.load('wave.pt'))
+            self.wave.load_state_dict(torch.load(self.prefix + '_wave.pt'))
         
         else:
             self.train()
@@ -74,7 +77,7 @@ class PINN(Solver):
         x = torch.tensor((self.x / self.x[-1]).reshape(dim), dtype=torch.float)
         c = torch.tensor(self.c.reshape(dim), dtype=torch.float)
 
-        for _ in range(10):
+        for i in range(self.model_retry):
             self.model.train()
             opt = torch.optim.LBFGS(self.model.parameters())
 
@@ -230,10 +233,10 @@ class PINN(Solver):
         self.model.eval()
 
         if self.update_wave:
-            torch.save(self.wave.state_dict(), 'wave_new.pt' if self.load_wave else 'wave.pt')
+            torch.save(self.wave.state_dict(), self.prefix + '_' + ('wave_new.pt' if self.load_wave else 'wave.pt'))
         
         if self.update_model:
-            torch.save(self.model.state_dict(), 'model_new.pt' if self.load_model else 'model.pt')
+            torch.save(self.model.state_dict(), self.prefix + '_' + ('model_new.pt' if self.load_model else 'model.pt'))
 
         u = self.wave(x, t)
         u_xx = self.grad(self.grad(u, x), x)
