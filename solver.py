@@ -18,7 +18,6 @@ class Solver:
     t: np.ndarray
     x: np.ndarray
     field: np.ndarray
-    v_pred: np.ndarray
     residual: np.ndarray | None = None
 
     lb: int
@@ -58,8 +57,8 @@ class Solver:
     def plot(self, nsnap=4):
         x, t = np.meshgrid(self.x, self.t)
 
-        # nrows = 3 if self.residual is not None else 2
-        nrows = 2
+        nrows = 3 if self.residual is not None else 2
+        # nrows = 2
         plt.figure(figsize=(nsnap*3, nrows*2))
         gs = GridSpec(nrows, nsnap)
         # vmax = abs(self.u).max() / 2
@@ -79,15 +78,15 @@ class Solver:
         # for it in t_cross_sections:
         #     plt.axvline(it * self.dt)
 
-        # if self.residual is not None:
-        #     plt.subplot(gs[1, :])
-        #     u = self.residual.reshape(t.shape)
-        #     plt.pcolormesh(t, x, u, cmap='rainbow', norm=Normalize(vmin=vmin, vmax=vmax), shading='auto')
-        #     plt.xlabel('t')
-        #     plt.ylabel('x')
-        #     cbar = plt.colorbar(pad=0.05, aspect=10)
-        #     cbar.set_label('Δ(t,x)')
-        #     cbar.mappable.set_clim(vmin, vmax)
+        if self.residual is not None:
+            plt.subplot(gs[1, :])
+            u = self.residual.reshape(t.shape)
+            plt.pcolormesh(t, x, u, cmap='rainbow', norm=Normalize(vmin=vmin, vmax=vmax), shading='auto')
+            plt.xlabel('t')
+            plt.ylabel('x')
+            cbar = plt.colorbar(pad=0.05, aspect=10)
+            cbar.set_label('Δ(t,x)')
+            cbar.mappable.set_clim(vmin, vmax)
         
         def lim(d):
             bottom = None if d.min() < vmin else vmin
@@ -129,7 +128,6 @@ class Solver:
         plt.subplot(gs[nrows-1, 1])
         if self.residual is not None:
             plt.plot(self.x, (self.field[1,:]-self.field[0,:])/self.dt, label='predict')
-            # plt.plot(self.x, self.v_pred, label='predict')
             plt.plot(self.x, self.v, label='true')
             plt.legend()
         else:
