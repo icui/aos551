@@ -39,10 +39,13 @@ class PINN(Solver):
     layers_wave = [2, 32, 16, 16, 32, 1]
     layers_model = [1, 16, 16, 1]
     activation='tanh'
+    x_scale = 1.0
+    t_scale = 1.0
 
     ntrain = 10000
     batch = 15000
     weights = [1, 1, 1, 1, 1, 1, 1, 1]
+    adam_lr = 0.005
 
     model_retry = 10
     niter_adam = 1000
@@ -53,6 +56,8 @@ class PINN(Solver):
     def run(self):
         self.wave = NN_wave(self.layers_wave)
         self.model = NN_model(self.layers_model)
+        self._x = self.x[-1] / self.x_scale
+        self._t = self.t[-1] / self.t_scale
 
         self.create_data()
         
@@ -65,7 +70,7 @@ class PINN(Solver):
         if self.load_wave:
             self.wave.load_state_dict(torch.load(self.prefix + '_wave.pt'))
         
-        else:
+        if self.update_wave or self.update_model:
             self.train()
 
         self.postprocess()
@@ -74,7 +79,7 @@ class PINN(Solver):
         mse = torch.nn.MSELoss()
 
         dim = [self.nx, 1]
-        x = torch.tensor((self.x / self.x[-1]).reshape(dim), dtype=torch.float)
+        x = torch.tensor((self.x / self._x).reshape(dim), dtype=torch.float)
         c = torch.tensor(self.c.reshape(dim), dtype=torch.float)
 
         for i in range(self.model_retry):
@@ -104,6 +109,8 @@ class PINN(Solver):
         
         if m >= self.model_threshold:
             raise RuntimeError('model training failed')
+        
+        torch.save(self.model.state_dict(), self.prefix + '_model.pt')
 
         import matplotlib.pyplot as plt
         plt.plot(x, c, label='model')
@@ -155,7 +162,7 @@ class PINN(Solver):
             self.model.train()
             params += list(self.model.parameters())
 
-        self.optimizer = torch.optim.Adam(params, lr=0.005)
+        self.optimizer = torch.optim.Adam(params, lr=self.adam_lr)
         
         for epoch in range(self.niter_adam):
             loss = self.loss()
@@ -187,7 +194,7 @@ class PINN(Solver):
         mse_eqn = mse(u_tt, self.ctx2(self.x_eqn) * u_xx)
 
         u_ini = self.wave(self.x_ini, self.t_ini)
-        mse_ini =  mse(u_ini, self.u_ini_true) + mse(self.grad(u_ini, self.t_ini) / self.t[-1], self.v_ini_true)
+        mse_ini =  mse(u_ini, self.u_ini_true) + mse(self.grad(u_ini, self.t_ini) / self._t, self.v_ini_true)
 
         u_lb = self.wave(self.x_lb, self.t_lb)
         if self.lb:
@@ -214,7 +221,7 @@ class PINN(Solver):
         return loss
 
     def ctx2(self, x):
-        return (self.model(x) * self.t[-1] / self.x[-1]) ** 2
+        return (self.model(x) * self._t / self._x) ** 2
 
     def postprocess(self):
         import matplotlib.pyplot as plt
@@ -222,8 +229,8 @@ class PINN(Solver):
         plt.plot(self.hist)
         plt.savefig('hist.png')
 
-        x = np.tile(self.x / self.x[-1], self.nt)
-        t = np.tile(self.t / self.t[-1], (self.nx, 1)).transpose().flatten()
+        x = np.tile(self.x / self._x, self.nt)
+        t = np.tile(self.t / self._t, (self.nx, 1)).transpose().flatten()
         
         dim = (self.nx * self.nt, 1)
         x = torch.tensor(x.reshape(dim), requires_grad=True, dtype=torch.float)
@@ -236,7 +243,7 @@ class PINN(Solver):
             torch.save(self.wave.state_dict(), self.prefix + '_' + ('wave_new.pt' if self.load_wave else 'wave.pt'))
         
         if self.update_model:
-            torch.save(self.model.state_dict(), self.prefix + '_' + ('model_new.pt' if self.load_model else 'model.pt'))
+            torch.save(self.model.state_dict(), self.prefix + '_model_new.pt')
 
         u = self.wave(x, t)
         u_xx = self.grad(self.grad(u, x), x)

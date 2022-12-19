@@ -27,7 +27,7 @@ else:
     dx = 0.002
 
 rho = 1.0
-c = 1.0 if homo else lambda x: 1 if x < lx else 2
+c = 1.0 if homo else lambda x: 1 if x < lx else 1.2
 ref = None
 
 
